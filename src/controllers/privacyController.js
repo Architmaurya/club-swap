@@ -1,6 +1,7 @@
 import { z } from "zod";
 import PrivacySettings from "../models/PrivacySettings.js";
 
+/* ================= UPDATE SCHEMA ================= */
 export const privacySchema = z.object({
   body: z.object({
     showProfile: z.boolean().optional(),
@@ -9,32 +10,43 @@ export const privacySchema = z.object({
   }),
 });
 
+/* ================= UPDATE MY PRIVACY ================= */
 export const updatePrivacy = async (req, res, next) => {
   try {
-    console.log("➡️ PRIVACY UPDATE Request");
-    console.log("   User:", req.user._id);
-    console.log("   Body:", req.body);
+    const update = {};
 
-    const { showProfile, showOnlineStatus, locationPermission } = req.body;
+    if (typeof req.body.showProfile === "boolean")
+      update.showProfile = req.body.showProfile;
 
-    console.log("🔍 Fetching existing privacy settings...");
-    const oldSettings = await PrivacySettings.findOne({ user: req.user._id }).lean();
-    console.log("   Existing settings:", oldSettings || "No previous settings");
+    if (typeof req.body.showOnlineStatus === "boolean")
+      update.showOnlineStatus = req.body.showOnlineStatus;
 
-    console.log("🛠 Updating privacy settings...");
+    if (typeof req.body.locationPermission === "boolean")
+      update.locationPermission = req.body.locationPermission;
 
     const settings = await PrivacySettings.findOneAndUpdate(
       { user: req.user._id },
-      { showProfile, showOnlineStatus, locationPermission },
+      { $set: update },
       { new: true, upsert: true }
     );
 
-    console.log("✔ Privacy settings updated:", settings);
-
     res.json(settings);
-
   } catch (err) {
-    console.log("❌ Error in updatePrivacy:", err);
+    next(err);
+  }
+};
+
+/* ================= GET OTHER USER ONLINE STATUS ================= */
+export const getUserOnlineStatus = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const settings = await PrivacySettings.findOne({ user: userId }).lean();
+
+    res.json({
+      showOnlineStatus: settings?.showOnlineStatus ?? true,
+    });
+  } catch (err) {
     next(err);
   }
 };
