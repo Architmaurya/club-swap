@@ -14,6 +14,7 @@ import matchRoutes from "./routes/matchRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import privacyRoutes from "./routes/privacyRoutes.js";
 import feedRoutes from "./routes/feedRoutes.js";
+import tonightPlanRoutes from "./routes/tonightPlan.routes.js";
 
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
@@ -75,6 +76,7 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/privacy", privacyRoutes);
 app.use("/api/feed", feedRoutes);
+app.use("/api/plan", tonightPlanRoutes);
 
 console.log("✔ All API routes loaded");
 
