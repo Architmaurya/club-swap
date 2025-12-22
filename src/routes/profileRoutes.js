@@ -4,15 +4,29 @@ import {
   createProfileSchema,
   uploadPhotos,
   upload,
-  getMyProfile
+  getMyProfile,
+  reorderPhotos,
+  deletePhoto,
 } from "../controllers/profileController.js";
+
 import { authRequired } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 
 const router = express.Router();
 
-router.post("/", authRequired, validate(createProfileSchema), createOrUpdateProfile);
+/* ===============================
+   CREATE / UPDATE PROFILE
+================================ */
+router.post(
+  "/",
+  authRequired,
+  validate(createProfileSchema),
+  createOrUpdateProfile
+);
 
+/* ===============================
+   UPLOAD PROFILE PHOTOS
+================================ */
 router.post(
   "/photos",
   authRequired,
@@ -20,6 +34,31 @@ router.post(
   uploadPhotos
 );
 
-router.get("/me", authRequired, getMyProfile);
+/* ===============================
+   REORDER / MAKE MAIN PHOTO
+================================ */
+router.put(
+  "/photos/reorder",
+  authRequired,
+  reorderPhotos
+);
+
+/* ===============================
+   DELETE PHOTO
+================================ */
+router.delete(
+  "/photos/:photoId",
+  authRequired,
+  deletePhoto
+);
+
+/* ===============================
+   GET MY PROFILE
+================================ */
+router.get(
+  "/me",
+  authRequired,
+  getMyProfile
+);
 
 export default router;

@@ -5,9 +5,10 @@ import TonightPlan from "../models/TonightPlan.js";
 import Photo from "../models/Photo.js";
 import cloudinary from "../config/cloudinary.js";
 import multer from "multer";
+import Club from "../models/Club.js";
 
 /* ===============================
-   ZOD SCHEMA
+   ZOD SCHEMA (names allowed)
 ================================ */
 export const createProfileSchema = z.object({
   body: z.object({
@@ -21,6 +22,7 @@ export const createProfileSchema = z.object({
     latitude: z.number(),
     longitude: z.number(),
 
+    // 👇 frontend sends club NAMES
     favoriteClubs: z.array(z.string()).optional(),
 
     drinkingLevel: z.enum(["little", "moderate", "heavy"]),
@@ -33,7 +35,7 @@ export const createProfileSchema = z.object({
 });
 
 /* ===============================
-   CREATE / UPDATE PROFILE
+   CREATE / UPDATE PROFILE (FIXED)
 ================================ */
 export const createOrUpdateProfile = async (req, res, next) => {
   try {
@@ -57,9 +59,22 @@ export const createOrUpdateProfile = async (req, res, next) => {
       tonightArrivalTime,
     } = req.body;
 
-    /* ----------------------------
+    /* --------------------------------
+       🔥 CONVERT CLUB NAMES → IDS
+    -------------------------------- */
+    let favoriteClubIds = [];
+
+    if (Array.isArray(favoriteClubs) && favoriteClubs.length > 0) {
+      const clubs = await Club.find({
+        name: { $in: favoriteClubs },
+      }).select("_id");
+
+      favoriteClubIds = clubs.map((c) => c._id);
+    }
+
+    /* --------------------------------
        SAVE PROFILE
-    ----------------------------- */
+    -------------------------------- */
     const profile = await UserProfile.findOneAndUpdate(
       { user: req.user._id },
       {
@@ -74,7 +89,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
           type: "Point",
           coordinates: [longitude, latitude],
         },
-        favoriteClubs,
+        favoriteClubs: favoriteClubIds, // ✅ FIXED
         drinkingLevel,
         splitBill,
         openForAfterparty,
@@ -82,32 +97,21 @@ export const createOrUpdateProfile = async (req, res, next) => {
       { upsert: true, new: true }
     );
 
-    console.log("✅ PROFILE SAVED:", profile._id.toString());
-
-    /* ----------------------------
-       🔥 MARK USER AS REGISTERED
-    ----------------------------- */
+    /* --------------------------------
+       MARK USER REGISTERED
+    -------------------------------- */
     await User.findByIdAndUpdate(req.user._id, {
       isRegistered: true,
     });
 
-    const freshUser = await User.findById(req.user._id);
-
-    console.log(
-      "🔥 USER REGISTERED:",
-      freshUser._id.toString(),
-      "isRegistered:",
-      freshUser.isRegistered
-    );
-
-    /* ----------------------------
+    /* --------------------------------
        TONIGHT PLAN (OPTIONAL)
-    ----------------------------- */
+    -------------------------------- */
     if (tonightClubId && tonightArrivalTime) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const plan = await TonightPlan.findOneAndUpdate(
+      await TonightPlan.findOneAndUpdate(
         { user: req.user._id, date: today },
         {
           user: req.user._id,
@@ -117,16 +121,13 @@ export const createOrUpdateProfile = async (req, res, next) => {
         },
         { upsert: true, new: true }
       );
-
-      console.log("🌙 TONIGHT PLAN SAVED:", plan._id.toString());
     }
 
-    return res.status(201).json({
+    res.status(201).json({
       message: "Profile completed successfully",
       isRegistered: true,
       profile,
     });
-
   } catch (err) {
     console.error("❌ PROFILE ERROR:", err);
     next(err);
@@ -134,62 +135,34 @@ export const createOrUpdateProfile = async (req, res, next) => {
 };
 
 /* ===============================
-   GET MY PROFILE  ✅ FIXED
+   GET MY PROFILE
 ================================ */
-// export const getMyProfile = async (req, res) => {
-//   try {
-//     console.log("📄 FETCH PROFILE FOR USER:", req.user._id.toString());
-
-//     const profile = await UserProfile.findOne({ user: req.user._id })
-//       .populate("favoriteClubs");
-
-//     if (!profile) {
-//       console.log("⚠️ NO PROFILE FOUND");
-//       return res.status(404).json({ message: "Profile not found" });
-//     }
-
-//     console.log("✅ PROFILE FOUND:", profile._id.toString());
-
-//     res.json({
-//       profile,
-//       isRegistered: req.user.isRegistered,
-//     });
-
-//   } catch (err) {
-//     console.error("❌ GET PROFILE ERROR:", err);
-//     res.status(500).json({ message: "Failed to fetch profile" });
-//   }
-// };
-
-
 export const getMyProfile = async (req, res) => {
   try {
-    console.log("📄 FETCH PROFILE FOR USER:", req.user._id.toString());
-
     const profile = await UserProfile.findOne({ user: req.user._id })
-      .populate("favoriteClubs")
+      .populate({
+        path: "favoriteClubs",
+        select: "name category description",
+      })
       .lean();
 
     if (!profile) {
-      console.log("⚠️ NO PROFILE FOUND");
       return res.status(404).json({ message: "Profile not found" });
     }
 
-    // 🔥 FETCH USER PHOTOS
     const photos = await Photo.find({ user: req.user._id })
       .sort({ order: 1 })
+      .select("_id url order")
       .lean();
 
-    console.log("🖼️ Photos found:", photos.length);
-
     res.json({
+      isRegistered: req.user.isRegistered,
       profile: {
         ...profile,
-        photos, // ✅ ATTACHED HERE
+        favoriteClubs: profile.favoriteClubs || [],
+        photos,
       },
-      isRegistered: req.user.isRegistered,
     });
-
   } catch (err) {
     console.error("❌ GET PROFILE ERROR:", err);
     res.status(500).json({ message: "Failed to fetch profile" });
@@ -216,23 +189,25 @@ export const upload = multer({
 });
 
 /* ===============================
-   UPLOAD PHOTOS
+   UPLOAD PHOTOS (APPEND SAFE)
 ================================ */
 export const uploadPhotos = async (req, res, next) => {
   try {
-    console.log("📸 PHOTO UPLOAD USER:", req.user._id.toString());
-
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No photos uploaded" });
     }
+
+    const lastPhoto = await Photo.findOne({ user: req.user._id }).sort({
+      order: -1,
+    });
+
+    const startOrder = lastPhoto ? lastPhoto.order + 1 : 1;
 
     const uploads = await Promise.all(
       req.files.map((file, index) => {
         return new Promise((resolve, reject) => {
           cloudinary.uploader.upload_stream(
-            {
-              folder: "club-match/profile",
-            },
+            { folder: "club-match/profile" },
             async (err, result) => {
               if (err) return reject(err);
 
@@ -240,10 +215,9 @@ export const uploadPhotos = async (req, res, next) => {
                 user: req.user._id,
                 url: result.secure_url,
                 publicId: result.public_id,
-                order: index + 1,
+                order: startOrder + index,
               });
 
-              console.log("✅ PHOTO SAVED:", photo._id.toString());
               resolve(photo);
             }
           ).end(file.buffer);
@@ -255,9 +229,70 @@ export const uploadPhotos = async (req, res, next) => {
       message: "Photos uploaded successfully",
       photos: uploads,
     });
-
   } catch (err) {
     console.error("❌ PHOTO UPLOAD ERROR:", err);
     next(err);
+  }
+};
+
+/* ===============================
+   REORDER / MAKE MAIN PHOTO
+================================ */
+export const reorderPhotos = async (req, res) => {
+  try {
+    const { photos } = req.body;
+
+    if (!Array.isArray(photos)) {
+      return res.status(400).json({ message: "Invalid photo order data" });
+    }
+
+    await Promise.all(
+      photos.map((p) =>
+        Photo.updateOne(
+          { _id: p._id, user: req.user._id },
+          { $set: { order: p.order } }
+        )
+      )
+    );
+
+    res.json({ message: "Photo order updated successfully" });
+  } catch (err) {
+    console.error("❌ REORDER PHOTOS ERROR:", err);
+    res.status(500).json({ message: "Failed to reorder photos" });
+  }
+};
+
+/* ===============================
+   DELETE PHOTO
+================================ */
+export const deletePhoto = async (req, res) => {
+  try {
+    const { photoId } = req.params;
+
+    const photo = await Photo.findOne({
+      _id: photoId,
+      user: req.user._id,
+    });
+
+    if (!photo) {
+      return res.status(404).json({ message: "Photo not found" });
+    }
+
+    await cloudinary.uploader.destroy(photo.publicId);
+    await Photo.deleteOne({ _id: photoId });
+
+    const remaining = await Photo.find({ user: req.user._id }).sort({
+      order: 1,
+    });
+
+    for (let i = 0; i < remaining.length; i++) {
+      remaining[i].order = i + 1;
+      await remaining[i].save();
+    }
+
+    res.json({ message: "Photo deleted successfully" });
+  } catch (err) {
+    console.error("❌ DELETE PHOTO ERROR:", err);
+    res.status(500).json({ message: "Failed to delete photo" });
   }
 };
