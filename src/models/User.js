@@ -2,9 +2,13 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
+    /* ===============================
+       AUTH / IDENTITY
+    ================================ */
     googleId: {
       type: String,
       index: true,
+      sparse: true, // ✅ allows multiple nulls
     },
 
     email: {
@@ -12,6 +16,8 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       index: true,
+      lowercase: true,
+      trim: true,
     },
 
     name: {
@@ -29,21 +35,49 @@ const userSchema = new mongoose.Schema(
       default: "user",
     },
 
-    // 🔥 AUTH / REGISTRATION STATUS
-    isRegistered: {
-      type: Boolean,
-      default: false, // ❗ new users are NOT registered
-    },
-
     authProvider: {
       type: String,
       enum: ["google", "email"],
+      required: true,
+    },
+
+    /* ===============================
+       REGISTRATION STATUS
+    ================================ */
+    isRegistered: {
+      type: Boolean,
+      default: false,
+    },
+
+    /* ===============================
+       VIP / SUBSCRIPTION (RAZORPAY)
+    ================================ */
+    isVip: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    vipPlan: {
+      type: String,
+      enum: ["monthly", "annual"],
+    },
+
+    vipActivatedAt: {
+      type: Date,
+    },
+
+    vipExpiresAt: {
+      type: Date,
+      index: true,
     },
   },
   { timestamps: true }
 );
 
-// 🔒 Only ONE admin allowed (UNCHANGED)
+/* ===============================
+   SINGLE ADMIN ENFORCEMENT
+================================ */
 userSchema.pre("save", async function (next) {
   if (this.role !== "admin") return next();
 

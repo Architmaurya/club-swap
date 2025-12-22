@@ -15,6 +15,8 @@ import messageRoutes from "./routes/messageRoutes.js";
 import privacyRoutes from "./routes/privacyRoutes.js";
 import feedRoutes from "./routes/feedRoutes.js";
 import tonightPlanRoutes from "./routes/tonightPlan.routes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import webhookRoutes from "./routes/webhookRoutes.js";
 
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
@@ -23,6 +25,15 @@ const app = express();
 console.log("⚙️ Initializing Express App...");
 
 app.set("trust proxy", 1);
+
+// -------------------------
+// 🔴 RAZORPAY WEBHOOK (RAW BODY FIRST)
+// -------------------------
+app.use(
+  "/api/webhook/razorpay",
+  express.raw({ type: "application/json" }),
+  webhookRoutes
+);
 
 // -------------------------
 // Rate Limiting
@@ -38,6 +49,7 @@ app.use(limiter);
 // Security Middlewares
 // -------------------------
 app.use(helmet());
+
 app.use(
   cors({
     origin: process.env.CLIENT_ORIGIN
@@ -47,6 +59,9 @@ app.use(
   })
 );
 
+// -------------------------
+// NORMAL JSON PARSER (AFTER WEBHOOK)
+// -------------------------
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(mongoSanitize());
@@ -60,7 +75,6 @@ console.log("🔒 Security & Parser middlewares loaded");
 // Root Route
 // -------------------------
 app.get("/", (req, res) => {
-  console.log("➡️ GET / request received");
   res.json({ message: "Club Match API running" });
 });
 
@@ -77,6 +91,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/privacy", privacyRoutes);
 app.use("/api/feed", feedRoutes);
 app.use("/api/plan", tonightPlanRoutes);
+app.use("/api/payment", paymentRoutes);
 
 console.log("✔ All API routes loaded");
 
