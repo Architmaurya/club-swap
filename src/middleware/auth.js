@@ -24,6 +24,9 @@ export const authRequired = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid token" });
     }
 
+    /* ===============================
+       SESSION CHECK
+    ================================ */
     const session = await Session.findById(decoded.sessionId);
     if (!session || session.revoked) {
       return res.status(401).json({ message: "Session expired" });
@@ -37,6 +40,9 @@ export const authRequired = async (req, res, next) => {
       });
     }
 
+    /* ===============================
+       USER FETCH
+    ================================ */
     const user = await User.findById(decoded.userId).select(
       "_id email role isVip vipExpiresAt vipPlan isRegistered"
     );
@@ -45,16 +51,39 @@ export const authRequired = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // 🔥 VIP DERIVED FLAG (SAFE)
-    user.isVipActive =
-      user.isVip &&
-      user.vipExpiresAt &&
-      new Date(user.vipExpiresAt) > new Date();
+    /* ===============================
+       VIP ACTIVE (FIXED – RACE SAFE)
+    ================================ */
+    const NOW = Date.now();
+    const EXPIRY = user.vipExpiresAt
+      ? new Date(user.vipExpiresAt).getTime()
+      : 0;
 
+    // ⏱️ 2-second safety buffer to avoid millisecond boundary race
+    const isVipActive =
+      user.isVip &&
+      EXPIRY - NOW > 2000;
+
+    /* ===============================
+       UPDATE SESSION
+    ================================ */
     session.lastActive = new Date();
     await session.save();
 
-    req.user = user;
+    /* ===============================
+       ATTACH SAFE USER OBJECT
+    ================================ */
+    req.user = {
+      _id: user._id,
+      email: user.email,
+      role: user.role,
+      isRegistered: user.isRegistered,
+      isVip: user.isVip,
+      vipPlan: user.vipPlan,
+      vipExpiresAt: user.vipExpiresAt,
+      isVipActive, // ✅ STABLE & CORRECT
+    };
+
     req.session = session;
 
     next();
@@ -64,6 +93,9 @@ export const authRequired = async (req, res, next) => {
   }
 };
 
+/* ===============================
+   ADMIN GUARD
+================================ */
 export const adminOnly = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });

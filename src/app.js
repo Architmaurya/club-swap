@@ -17,37 +17,43 @@ import feedRoutes from "./routes/feedRoutes.js";
 import tonightPlanRoutes from "./routes/tonightPlan.routes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
-import userRoutes from "./routes/userRoutes.js"
+import userRoutes from "./routes/userRoutes.js";
+
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 
 console.log("⚙️ Initializing Express App...");
-
 app.set("trust proxy", 1);
 
-// -------------------------
-// 🔴 RAZORPAY WEBHOOK (RAW BODY FIRST)
-// -------------------------
+/* =====================================================
+   🔥 RAZORPAY WEBHOOK (RAW BODY – MUST BE FIRST)
+   FINAL URL: /api/webhooks/razorpay
+===================================================== */
+// app.post(
+//   "/api/webhooks/razorpay",
+//   express.raw({ type: "application/json" }),
+//   webhookRoutes
+// );
 app.use(
-  "/api/webhook/razorpay",
+  "/api/webhooks/razorpay",
   express.raw({ type: "application/json" }),
   webhookRoutes
 );
 
-// -------------------------
-// Rate Limiting
-// -------------------------
+
+/* =====================================================
+   RATE LIMITING
+===================================================== */
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
 });
-
 app.use(limiter);
 
-// -------------------------
-// Security Middlewares
-// -------------------------
+/* =====================================================
+   SECURITY MIDDLEWARES
+===================================================== */
 app.use(helmet());
 
 app.use(
@@ -59,9 +65,9 @@ app.use(
   })
 );
 
-// -------------------------
-// NORMAL JSON PARSER (AFTER WEBHOOK)
-// -------------------------
+/* =====================================================
+   NORMAL BODY PARSERS (AFTER WEBHOOK)
+===================================================== */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(mongoSanitize());
@@ -69,21 +75,21 @@ app.use(xss());
 app.use(compression());
 app.use(morgan("dev"));
 
-console.log("🔒 Security & Parser middlewares loaded");
+console.log("🔒 Security & parser middlewares loaded");
 
-// -------------------------
-// Root Route
-// -------------------------
+/* =====================================================
+   ROOT
+===================================================== */
 app.get("/", (req, res) => {
   res.json({ message: "Club Match API running" });
 });
 
-// -------------------------
-// API Routes
-// -------------------------
+/* =====================================================
+   API ROUTES
+===================================================== */
 console.log("📌 Loading API routes...");
-app.use("/api/users", userRoutes);
 
+app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/clubs", clubRoutes);
@@ -96,9 +102,9 @@ app.use("/api/payment", paymentRoutes);
 
 console.log("✔ All API routes loaded");
 
-// -------------------------
-// Error Handlers
-// -------------------------
+/* =====================================================
+   ERROR HANDLERS
+===================================================== */
 app.use(notFound);
 app.use(errorHandler);
 

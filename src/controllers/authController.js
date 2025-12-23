@@ -78,6 +78,7 @@ export const googleLogin = async (req, res) => {
         googleId: payload.sub,
         name: payload.name,
         avatar: payload.picture,
+        authProvider: "google", // ✅ FIX ADDED
         isRegistered: false,
       });
     }
@@ -157,8 +158,13 @@ export const verifyEmailOtp = async (req, res) => {
     await Otp.deleteOne({ email });
 
     let user = await User.findOne({ email });
+
     if (!user) {
-      user = await User.create({ email, isRegistered: false });
+      user = await User.create({
+        email,
+        authProvider: "email", // ✅ FIX ADDED
+        isRegistered: false,
+      });
     }
 
     const session = await createSession(user._id, deviceId);
@@ -204,7 +210,6 @@ export const refreshToken = async (req, res) => {
 
     const token = signToken(decoded.userId, session._id);
     res.json({ token });
-
   } catch {
     res.status(401).json({ message: "Invalid refresh token" });
   }
