@@ -17,7 +17,7 @@ import feedRoutes from "./routes/feedRoutes.js";
 import tonightPlanRoutes from "./routes/tonightPlan.routes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
-
+import userRoutes from "./routes/userRoutes.js"
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
@@ -82,6 +82,7 @@ app.get("/", (req, res) => {
 // API Routes
 // -------------------------
 console.log("📌 Loading API routes...");
+app.use("/api/users", userRoutes);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);

@@ -19,11 +19,10 @@ const generateOtp = () => {
 
 /* 🔐 ACCESS TOKEN (SHORT LIFE) */
 const signToken = (userId, sessionId) => {
-  console.log("🔐 JWT SIGNING for user:", userId.toString());
   return jwt.sign(
     { userId, sessionId },
     process.env.JWT_SECRET,
-    { expiresIn: "15m" } // ⏳ SHORT LIFE
+    { expiresIn: "15m" }
   );
 };
 
@@ -37,10 +36,9 @@ const signRefreshToken = (userId, sessionId) => {
 };
 
 /* ======================================================
-   CREATE / REPLACE SESSION (1 DEVICE = 1 SESSION)
+   CREATE / REPLACE SESSION
 ====================================================== */
 const createSession = async (userId, deviceId) => {
-  // Remove old session for same device
   await Session.deleteMany({ user: userId, deviceId });
 
   return Session.create({
@@ -56,35 +54,25 @@ const createSession = async (userId, deviceId) => {
 ====================================================== */
 export const googleLogin = async (req, res) => {
   try {
-    console.log("➡️ GOOGLE LOGIN START");
-
     const { idToken, deviceId } = req.body;
     if (!idToken || !deviceId) {
-      console.log("❌ ID TOKEN / DEVICE ID MISSING");
       return res.status(400).json({ message: "ID token & deviceId required" });
     }
-
-    console.log("🌐 VERIFYING GOOGLE TOKEN");
 
     const googleRes = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`
     );
     const payload = await googleRes.json();
 
-    console.log("📦 GOOGLE PAYLOAD:", payload);
-
     if (payload.error_description) {
-      console.log("❌ INVALID GOOGLE TOKEN");
       return res.status(401).json({ message: "Invalid Google token" });
     }
 
     const email = normalizeEmail(payload.email);
-    console.log("📧 NORMALIZED EMAIL:", email);
 
     let user = await User.findOne({ email });
 
     if (!user) {
-      console.log("🆕 CREATING NEW USER");
       user = await User.create({
         email,
         googleId: payload.sub,
@@ -92,8 +80,6 @@ export const googleLogin = async (req, res) => {
         avatar: payload.picture,
         isRegistered: false,
       });
-    } else {
-      console.log("✔ USER FOUND:", user._id.toString());
     }
 
     const session = await createSession(user._id, deviceId);
@@ -104,11 +90,9 @@ export const googleLogin = async (req, res) => {
     session.refreshToken = refreshToken;
     await session.save();
 
-    console.log("✅ GOOGLE LOGIN SUCCESS");
-
     res.json({
-      token,                 // ⬅️ SAME KEY (no frontend break)
-      refreshToken,          // ⬅️ NEW (optional use)
+      token,
+      refreshToken,
       isRegistered: user.isRegistered,
       user: {
         id: user._id,
@@ -118,7 +102,6 @@ export const googleLogin = async (req, res) => {
         role: user.role,
       },
     });
-
   } catch (err) {
     console.error("❌ GOOGLE LOGIN ERROR:", err);
     res.status(500).json({ message: "Google login failed" });
@@ -130,33 +113,23 @@ export const googleLogin = async (req, res) => {
 ====================================================== */
 export const sendEmailOtp = async (req, res) => {
   try {
-    console.log("➡️ SEND OTP START");
-
     await Otp.deleteMany({ expiresAt: { $lt: new Date() } });
 
     let { email } = req.body;
     if (!email) {
-      console.log("❌ EMAIL MISSING");
       return res.status(400).json({ message: "Email required" });
     }
 
     email = normalizeEmail(email);
-    console.log("📧 EMAIL:", email);
-
     const otp = generateOtp();
 
     await Otp.findOneAndUpdate(
       { email },
-      {
-        email,
-        otp,
-        expiresAt: new Date(Date.now() + 60 * 1000),
-      },
+      { email, otp, expiresAt: new Date(Date.now() + 60 * 1000) },
       { upsert: true, new: true }
     );
 
     res.json({ message: "OTP sent (valid for 1 minute)" });
-
   } catch (err) {
     console.error("❌ SEND OTP ERROR:", err);
     res.status(500).json({ message: "Failed to send OTP" });
@@ -168,21 +141,16 @@ export const sendEmailOtp = async (req, res) => {
 ====================================================== */
 export const verifyEmailOtp = async (req, res) => {
   try {
-    console.log("➡️ VERIFY OTP START");
-
     let { email, otp, deviceId } = req.body;
 
     if (!email || !otp || !deviceId) {
-      console.log("❌ EMAIL / OTP / DEVICE ID MISSING");
       return res.status(400).json({ message: "Email, OTP & deviceId required" });
     }
 
     email = normalizeEmail(email);
-    console.log("📧 EMAIL:", email);
 
     const record = await Otp.findOne({ email });
     if (!record || record.otp !== otp) {
-      console.log("❌ OTP INVALID");
       return res.status(401).json({ message: "Invalid or expired OTP" });
     }
 
@@ -190,11 +158,7 @@ export const verifyEmailOtp = async (req, res) => {
 
     let user = await User.findOne({ email });
     if (!user) {
-      console.log("🆕 CREATING USER FROM OTP");
-      user = await User.create({
-        email,
-        isRegistered: false,
-      });
+      user = await User.create({ email, isRegistered: false });
     }
 
     const session = await createSession(user._id, deviceId);
@@ -204,8 +168,6 @@ export const verifyEmailOtp = async (req, res) => {
 
     session.refreshToken = refreshToken;
     await session.save();
-
-    console.log("🎉 OTP LOGIN SUCCESS");
 
     res.json({
       token,
@@ -217,7 +179,6 @@ export const verifyEmailOtp = async (req, res) => {
         role: user.role,
       },
     });
-
   } catch (err) {
     console.error("❌ VERIFY OTP ERROR:", err);
     res.status(500).json({ message: "OTP verification failed" });
@@ -242,7 +203,6 @@ export const refreshToken = async (req, res) => {
     }
 
     const token = signToken(decoded.userId, session._id);
-
     res.json({ token });
 
   } catch {
@@ -271,44 +231,29 @@ export const logoutAll = async (req, res) => {
 
   res.json({ message: "Logged out from all devices" });
 };
+
 /* ======================================================
    RESEND OTP
 ====================================================== */
 export const resendEmailOtp = async (req, res) => {
   try {
-    console.log("➡️ RESEND OTP START");
-
-    // 🔥 CLEAN EXPIRED OTPs
-    const cleaned = await Otp.deleteMany({
-      expiresAt: { $lt: new Date() },
-    });
-    console.log("🧹 EXPIRED OTPs DELETED:", cleaned.deletedCount);
+    await Otp.deleteMany({ expiresAt: { $lt: new Date() } });
 
     let { email } = req.body;
     if (!email) {
-      console.log("❌ EMAIL MISSING");
       return res.status(400).json({ message: "Email required" });
     }
 
     email = normalizeEmail(email);
-    console.log("📧 EMAIL:", email);
-
     const otp = generateOtp();
 
-    const otpDoc = await Otp.findOneAndUpdate(
+    await Otp.findOneAndUpdate(
       { email },
-      {
-        email,
-        otp,
-        expiresAt: new Date(Date.now() + 60 * 1000),
-      },
+      { email, otp, expiresAt: new Date(Date.now() + 60 * 1000) },
       { upsert: true, new: true }
     );
 
-    console.log("🔁 OTP UPDATED:", otpDoc);
-
     res.json({ message: "OTP resent (valid for 1 minute)" });
-
   } catch (err) {
     console.error("❌ RESEND OTP ERROR:", err);
     res.status(500).json({ message: "Failed to resend OTP" });

@@ -6,9 +6,9 @@ const razorpay = new Razorpay({
 });
 
 // ✅ Safe debug (PUBLIC KEY ONLY)
-console.log(
-  "✅ Razorpay initialized with key:",
-  process.env.RAZORPAY_KEY_ID
-);
+// console.log(
+//   "✅ Razorpay initialized with key:",
+//   process.env.RAZORPAY_KEY_ID
+// );
 
 export default razorpay;

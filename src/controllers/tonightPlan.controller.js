@@ -2,25 +2,27 @@ import TonightPlan from "../models/TonightPlan.js";
 
 /* ======================================================
    CREATE / UPDATE TONIGHT PLAN
-   (One plan per user per date)
+   (ONE plan per user ONLY)
 ====================================================== */
 export const upsertTonightPlan = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { club, arrivalTime, date } = req.body;
 
+    // ---------------- VALIDATION ----------------
     if (!club || !arrivalTime || !date) {
       return res.status(400).json({
         message: "club, arrivalTime and date are required",
       });
     }
 
-    // Normalize date → only one plan per day
+    // Normalize date (keep same day)
     const planDate = new Date(date);
     planDate.setHours(0, 0, 0, 0);
 
+    // ---------------- UPSERT ----------------
     const plan = await TonightPlan.findOneAndUpdate(
-      { user: userId, date: planDate },
+      { user: userId }, // 🔥 ONLY ONE PLAN PER USER
       {
         user: userId,
         club,
@@ -29,44 +31,42 @@ export const upsertTonightPlan = async (req, res, next) => {
       },
       {
         new: true,
-        upsert: true, // 🔥 create if not exists
+        upsert: true,
+        setDefaultsOnInsert: true,
       }
     ).populate("club");
 
-    res.status(200).json({
-      message: "Tonight plan saved",
+    return res.status(200).json({
+      message: "Tonight plan saved successfully",
       plan,
     });
   } catch (err) {
     console.error("❌ TONIGHT PLAN UPSERT ERROR:", err);
+
+    // Handle unique constraint edge case
+    if (err.code === 11000) {
+      return res.status(409).json({
+        message: "You already have a tonight plan",
+      });
+    }
+
     next(err);
   }
 };
 
 /* ======================================================
-   GET TONIGHT PLAN (TODAY)
+   GET TONIGHT PLAN (CURRENT)
 ====================================================== */
 export const getTonightPlan = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     const plan = await TonightPlan.findOne({
       user: userId,
-      date: today,
     }).populate("club");
 
-    if (!plan) {
-      return res.status(200).json({
-        message: "No plan for tonight",
-        plan: null,
-      });
-    }
-
-    res.status(200).json({
-      plan,
+    return res.status(200).json({
+      plan: plan || null,
     });
   } catch (err) {
     console.error("❌ GET TONIGHT PLAN ERROR:", err);
@@ -74,24 +74,19 @@ export const getTonightPlan = async (req, res, next) => {
   }
 };
 
-
 /* ======================================================
-   CANCEL TONIGHT PLAN (NOT GOING OUT)
+   CANCEL TONIGHT PLAN
 ====================================================== */
 export const cancelTonightPlan = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     await TonightPlan.findOneAndDelete({
       user: userId,
-      date: today,
     });
 
-    res.status(200).json({
-      message: "Tonight plan cancelled",
+    return res.status(200).json({
+      message: "Tonight plan cancelled successfully",
     });
   } catch (err) {
     console.error("❌ CANCEL TONIGHT PLAN ERROR:", err);
