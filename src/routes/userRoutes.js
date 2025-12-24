@@ -9,7 +9,8 @@ const router = express.Router();
 router.get("/me", authRequired, (req, res) => {
   res.json({
     user: {
-      id: req.user._id,
+      _id: req.user._id,   // 🔥 REQUIRED
+      id: req.user._id,    // (optional, keep if used elsewhere)
       email: req.user.email,
       role: req.user.role,
       isVip: req.user.isVip,
@@ -19,5 +20,6 @@ router.get("/me", authRequired, (req, res) => {
     },
   });
 });
+
 
 export default router;

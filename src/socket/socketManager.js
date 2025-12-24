@@ -1,12 +1,15 @@
 import Match from "../models/Match.js";
 import Message from "../models/Message.js";
-
-/* 🔥 NEW IMPORTS (ADD ONLY) */
 import User from "../models/User.js";
 import PrivacySettings from "../models/PrivacySettings.js";
 
-/* 🔥 IN-MEMORY TRACKING (ADD ONLY) */
-const onlineUsers = new Map();
+/* ===============================
+   IN-MEMORY TRACKING
+================================ */
+const onlineUsers = new Map(); // userId => socketId
+const offlineTimers = new Map();
+
+const OFFLINE_DELAY = 5 * 1000; // 5 seconds
 
 export const socketManager = (io) => {
   if (!io) throw new Error("❌ socketManager called without io");
@@ -14,32 +17,68 @@ export const socketManager = (io) => {
   io.on("connection", (socket) => {
     console.log("🟢 Socket connected:", socket.id);
 
-    /* =================================================
-       🔥 ADD: USER ONLINE
-    ================================================= */
+    /* ===============================
+       USER ONLINE
+    ================================ */
     socket.on("online", async (userId) => {
+      console.log("🔥 BACKEND RECEIVED ONLINE EVENT:", userId);
       if (!userId) return;
 
+      socket.userId = userId;
       onlineUsers.set(userId, socket.id);
 
-      const privacy = await PrivacySettings.findOne({ user: userId });
-
-      // Respect privacy
-      if (privacy?.showOnlineStatus === false) {
-        console.log("🔒 Online status hidden by privacy");
-        return;
+      // ❌ cancel pending offline timers
+      if (offlineTimers.has(userId)) {
+        clearTimeout(offlineTimers.get(userId));
+        offlineTimers.delete(userId);
       }
 
       await User.findByIdAndUpdate(userId, {
         isOnline: true,
+        lastSeen: new Date(),
       });
 
+      const privacy = await PrivacySettings.findOne({ user: userId });
+      if (privacy?.showOnlineStatus === false) return;
+
       io.emit("userOnline", userId);
+      console.log("🟢 User online broadcasted:", userId);
     });
 
-    /* =================================================
-       🔥 EXISTING CODE (UNCHANGED)
-    ================================================= */
+    /* ===============================
+       🔥 USER OFFLINE (LOGOUT)
+    ================================ */
+    socket.on("offline", async (userId) => {
+      console.log("🚪 BACKEND RECEIVED OFFLINE (LOGOUT):", userId);
+      if (!userId) return;
+
+      // 🧹 FULL CLEANUP
+      onlineUsers.delete(userId);
+
+      if (offlineTimers.has(userId)) {
+        clearTimeout(offlineTimers.get(userId));
+        offlineTimers.delete(userId);
+      }
+
+      socket.userId = null;
+
+      const lastSeen = new Date();
+
+      await User.findByIdAndUpdate(userId, {
+        isOnline: false,
+        lastSeen,
+      });
+
+      const privacy = await PrivacySettings.findOne({ user: userId });
+      if (privacy?.showOnlineStatus === false) return;
+
+      io.emit("userOffline", { userId, lastSeen });
+      console.log("🔴 User offline broadcasted (logout):", userId);
+    });
+
+    /* ===============================
+       JOIN ROOM
+    ================================ */
     socket.on("joinRoom", async ({ matchId, userId }) => {
       if (!matchId || !userId) return;
 
@@ -55,8 +94,11 @@ export const socketManager = (io) => {
       socket.join(matchId);
     });
 
-    socket.on("sendMessage", async ({ matchId, messageId, senderId }) => {
-      if (!matchId || !messageId || !senderId) return;
+    /* ===============================
+       SEND MESSAGE → DELIVERED TICK
+    ================================ */
+    socket.on("sendMessage", async ({ matchId, messageId }) => {
+      if (!matchId || !messageId) return;
 
       const msg = await Message.findByIdAndUpdate(
         messageId,
@@ -69,49 +111,45 @@ export const socketManager = (io) => {
       io.to(matchId).emit("newMessage", msg);
     });
 
+    /* ===============================
+       TYPING INDICATOR
+    ================================ */
     socket.on("typing", ({ matchId, userId }) => {
       socket.to(matchId).emit("typing", userId);
     });
 
-    /* =================================================
-       🔥 ADD: USER OFFLINE + LAST SEEN
-    ================================================= */
-    socket.on("disconnect", async () => {
-      console.log("🔴 Socket disconnected");
+    socket.on("stopTyping", ({ matchId, userId }) => {
+      socket.to(matchId).emit("stopTyping", userId);
+    });
 
-      let disconnectedUserId = null;
+    /* ===============================
+       DISCONNECT (FALLBACK)
+    ================================ */
+    socket.on("disconnect", () => {
+      const userId = socket.userId;
+      if (!userId) return;
 
-      for (const [uid, sid] of onlineUsers.entries()) {
-        if (sid === socket.id) {
-          disconnectedUserId = uid;
-          onlineUsers.delete(uid);
-          break;
-        }
-      }
+      console.log("🔴 Socket disconnected:", userId);
 
-      if (!disconnectedUserId) return;
+      const timer = setTimeout(async () => {
+        onlineUsers.delete(userId);
 
-      const privacy = await PrivacySettings.findOne({
-        user: disconnectedUserId,
-      });
+        const lastSeen = new Date();
+        await User.findByIdAndUpdate(userId, {
+          isOnline: false,
+          lastSeen,
+        });
 
-      const lastSeen = new Date();
+        const privacy = await PrivacySettings.findOne({ user: userId });
+        if (privacy?.showOnlineStatus === false) return;
 
-      await User.findByIdAndUpdate(disconnectedUserId, {
-        isOnline: false,
-        lastSeen,
-      });
+        io.emit("userOffline", { userId, lastSeen });
+        offlineTimers.delete(userId);
 
-      // Respect privacy
-      if (privacy?.showOnlineStatus === false) {
-        console.log("🔒 Last seen hidden by privacy");
-        return;
-      }
+        console.log("🔴 User offline broadcasted (disconnect):", userId);
+      }, OFFLINE_DELAY);
 
-      io.emit("userOffline", {
-        userId: disconnectedUserId,
-        lastSeen,
-      });
+      offlineTimers.set(userId, timer);
     });
   });
 };
