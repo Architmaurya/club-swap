@@ -1,5 +1,7 @@
 import { z } from "zod";
 import PrivacySettings from "../models/PrivacySettings.js";
+import User from "../models/User.js";
+
 
 /* ================= UPDATE SCHEMA ================= */
 export const privacySchema = z.object({
@@ -37,14 +39,44 @@ export const updatePrivacy = async (req, res, next) => {
 };
 
 /* ================= GET OTHER USER ONLINE STATUS ================= */
+// export const getUserOnlineStatus = async (req, res, next) => {
+//   try {
+//     const { userId } = req.params;
+
+//     const settings = await PrivacySettings.findOne({ user: userId }).lean();
+
+//     res.json({
+//       showOnlineStatus: settings?.showOnlineStatus ?? true,
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+/* ================= GET OTHER USER ONLINE STATUS ================= */
 export const getUserOnlineStatus = async (req, res, next) => {
   try {
     const { userId } = req.params;
 
+    const user = await User.findById(userId)
+      .select("isOnline lastSeen")
+      .lean();
+
     const settings = await PrivacySettings.findOne({ user: userId }).lean();
 
+    // 🔒 Privacy OFF → always hide online
+    if (settings?.showOnlineStatus === false) {
+      return res.json({
+        isOnline: false,
+        showOnlineStatus: false,
+        lastSeen: user?.lastSeen || null,
+      });
+    }
+
     res.json({
-      showOnlineStatus: settings?.showOnlineStatus ?? true,
+      isOnline: user?.isOnline === true,
+      showOnlineStatus: true,
+      lastSeen: user?.lastSeen || null,
     });
   } catch (err) {
     next(err);
