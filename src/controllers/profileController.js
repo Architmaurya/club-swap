@@ -1,14 +1,17 @@
+import mongoose from "mongoose";
 import { z } from "zod";
+
 import User from "../models/User.js";
 import UserProfile from "../models/UserProfile.js";
 import TonightPlan from "../models/TonightPlan.js";
 import Photo from "../models/Photo.js";
-import cloudinary from "../config/cloudinary.js";
-import multer from "multer";
 import Club from "../models/Club.js";
 
+import cloudinary from "../config/cloudinary.js";
+import multer from "multer";
+
 /* ===============================
-   ZOD SCHEMA (names allowed)
+   ZOD SCHEMA (SAFE + FLEXIBLE)
 ================================ */
 export const createProfileSchema = z.object({
   body: z.object({
@@ -22,12 +25,13 @@ export const createProfileSchema = z.object({
     latitude: z.number(),
     longitude: z.number(),
 
-    // 👇 frontend sends club NAMES
+    // ✅ Accept club IDs OR names
     favoriteClubs: z.array(z.string()).optional(),
 
-    drinkingLevel: z.enum(["little", "moderate", "heavy"]),
-    splitBill: z.boolean(),
-    openForAfterparty: z.boolean(),
+    // ✅ Optional (frontend may send null)
+    drinkingLevel: z.enum(["little", "moderate", "heavy"]).optional(),
+    splitBill: z.boolean().optional(),
+    openForAfterparty: z.boolean().optional(),
 
     tonightClubId: z.string().optional(),
     tonightArrivalTime: z.string().optional(),
@@ -35,12 +39,13 @@ export const createProfileSchema = z.object({
 });
 
 /* ===============================
-   CREATE / UPDATE PROFILE (FIXED)
+   CREATE / UPDATE PROFILE
 ================================ */
 export const createOrUpdateProfile = async (req, res, next) => {
   try {
+    console.log("======================================");
     console.log("👤 PROFILE USER:", req.user._id.toString());
-    console.log("📥 PROFILE BODY:", req.body);
+    console.log("📥 RAW PROFILE BODY:", req.body);
 
     const {
       name,
@@ -60,42 +65,59 @@ export const createOrUpdateProfile = async (req, res, next) => {
     } = req.body;
 
     /* --------------------------------
-       🔥 CONVERT CLUB NAMES → IDS
+       FAVORITE CLUBS (ID OR NAME)
     -------------------------------- */
     let favoriteClubIds = [];
 
     if (Array.isArray(favoriteClubs) && favoriteClubs.length > 0) {
-      const clubs = await Club.find({
-        name: { $in: favoriteClubs },
-      }).select("_id");
+      console.log("🎯 favoriteClubs input:", favoriteClubs);
 
-      favoriteClubIds = clubs.map((c) => c._id);
+      if (mongoose.isValidObjectId(favoriteClubs[0])) {
+        console.log("🆔 favoriteClubs detected as IDs");
+        favoriteClubIds = favoriteClubs;
+      } else {
+        console.log("🏷️ favoriteClubs detected as names");
+
+        const clubs = await Club.find({
+          name: { $in: favoriteClubs },
+        }).select("_id");
+
+        favoriteClubIds = clubs.map((c) => c._id);
+      }
     }
 
+    console.log("✅ favoriteClubIds resolved:", favoriteClubIds);
+
     /* --------------------------------
-       SAVE PROFILE
+       PROFILE PAYLOAD
     -------------------------------- */
+    const profilePayload = {
+      user: req.user._id,
+      name,
+      age,
+      gender,
+      interestedIn,
+      about,
+      city,
+      location: {
+        type: "Point",
+        coordinates: [longitude, latitude],
+      },
+      favoriteClubs: favoriteClubIds,
+      drinkingLevel: drinkingLevel ?? "little",
+      splitBill: splitBill ?? false,
+      openForAfterparty: openForAfterparty ?? false,
+    };
+
+    console.log("🧾 FINAL PROFILE PAYLOAD:", profilePayload);
+
     const profile = await UserProfile.findOneAndUpdate(
       { user: req.user._id },
-      {
-        user: req.user._id,
-        name,
-        age,
-        gender,
-        interestedIn,
-        about,
-        city,
-        location: {
-          type: "Point",
-          coordinates: [longitude, latitude],
-        },
-        favoriteClubs: favoriteClubIds, // ✅ FIXED
-        drinkingLevel,
-        splitBill,
-        openForAfterparty,
-      },
+      profilePayload,
       { upsert: true, new: true }
     );
+
+    console.log("💾 PROFILE SAVED:", profile._id);
 
     /* --------------------------------
        MARK USER REGISTERED
@@ -104,12 +126,16 @@ export const createOrUpdateProfile = async (req, res, next) => {
       isRegistered: true,
     });
 
+    console.log("✅ User marked as registered");
+
     /* --------------------------------
        TONIGHT PLAN (OPTIONAL)
     -------------------------------- */
     if (tonightClubId && tonightArrivalTime) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
+      console.log("🌙 Saving TonightPlan");
 
       await TonightPlan.findOneAndUpdate(
         { user: req.user._id, date: today },
@@ -122,6 +148,8 @@ export const createOrUpdateProfile = async (req, res, next) => {
         { upsert: true, new: true }
       );
     }
+
+    console.log("======================================");
 
     res.status(201).json({
       message: "Profile completed successfully",
@@ -139,6 +167,8 @@ export const createOrUpdateProfile = async (req, res, next) => {
 ================================ */
 export const getMyProfile = async (req, res) => {
   try {
+    console.log("📤 Fetching profile for:", req.user._id);
+
     const profile = await UserProfile.findOne({ user: req.user._id })
       .populate({
         path: "favoriteClubs",
@@ -189,7 +219,7 @@ export const upload = multer({
 });
 
 /* ===============================
-   UPLOAD PHOTOS (APPEND SAFE)
+   UPLOAD PHOTOS
 ================================ */
 export const uploadPhotos = async (req, res, next) => {
   try {
@@ -236,7 +266,7 @@ export const uploadPhotos = async (req, res, next) => {
 };
 
 /* ===============================
-   REORDER / MAKE MAIN PHOTO
+   REORDER PHOTOS
 ================================ */
 export const reorderPhotos = async (req, res) => {
   try {

@@ -26,9 +26,7 @@ import express from "express";
 
 import {
   googleLogin,
-  sendEmailOtp,
-  resendEmailOtp,
-  verifyEmailOtp,
+
   refreshToken,
   
 } from "../controllers/authController.js";
@@ -45,9 +43,9 @@ router.post("/google", googleLogin);
 /* ======================================================
    EMAIL + OTP AUTH
 ====================================================== */
-router.post("/email/send-otp", sendEmailOtp);
-router.post("/email/resend-otp", resendEmailOtp);
-router.post("/email/verify-otp", verifyEmailOtp);
+// router.post("/email/send-otp", sendEmailOtp);
+// router.post("/email/resend-otp", resendEmailOtp);
+// router.post("/email/verify-otp", verifyEmailOtp);
 
 /* ======================================================
    TOKEN
