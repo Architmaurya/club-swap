@@ -30,8 +30,7 @@ import {
   resendEmailOtp,
   verifyEmailOtp,
   refreshToken,
-  logout,
-  logoutAll,
+  
 } from "../controllers/authController.js";
 
 import { authRequired } from "../middleware/auth.js";
@@ -57,8 +56,8 @@ router.post("/refresh-token", refreshToken);
 
 /* ======================================================
    LOGOUT
-====================================================== */
-router.post("/logout", authRequired, logout);
-router.post("/logout-all", authRequired, logoutAll);
+// ====================================================== */
+// router.post("/logout", authRequired, logout);
+// router.post("/logout-all", authRequired, logoutAll);
 
 export default router;

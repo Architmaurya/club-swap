@@ -17,8 +17,9 @@ const generateOtp = () => {
   return otp;
 };
 
-/* 🔐 ACCESS TOKEN (SHORT LIFE) */
+/* 🔐 ACCESS TOKEN */
 const signToken = (userId, sessionId) => {
+  console.log("🔐 Signing access token");
   return jwt.sign(
     { userId, sessionId },
     process.env.JWT_SECRET,
@@ -28,6 +29,7 @@ const signToken = (userId, sessionId) => {
 
 /* 🔁 REFRESH TOKEN */
 const signRefreshToken = (userId, sessionId) => {
+  console.log("🔁 Signing refresh token");
   return jwt.sign(
     { userId, sessionId },
     process.env.JWT_REFRESH_SECRET,
@@ -39,12 +41,17 @@ const signRefreshToken = (userId, sessionId) => {
    CREATE / REPLACE SESSION
 ====================================================== */
 const createSession = async (userId, deviceId) => {
+  console.log("🧩 Creating session");
+  console.log("   userId:", userId);
+  console.log("   deviceId:", deviceId);
+
   await Session.deleteMany({ user: userId, deviceId });
 
   return Session.create({
     user: userId,
     deviceId,
     refreshToken: "temp",
+    revoked: false,
     lastActive: new Date(),
   });
 };
@@ -54,33 +61,61 @@ const createSession = async (userId, deviceId) => {
 ====================================================== */
 export const googleLogin = async (req, res) => {
   try {
+    console.log("=================================");
+    console.log("🟢 GOOGLE LOGIN API HIT");
+
     const { idToken, deviceId } = req.body;
     if (!idToken || !deviceId) {
-      return res.status(400).json({ message: "ID token & deviceId required" });
+      console.log("❌ Missing idToken or deviceId");
+      return res.status(400).json({
+        message: "ID token & deviceId required",
+      });
     }
+
+    console.log("🟡 Verifying Google token");
 
     const googleRes = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`
     );
     const payload = await googleRes.json();
 
+    console.log("🟢 GOOGLE PAYLOAD:", payload);
+
     if (payload.error_description) {
+      console.log("❌ Invalid Google token");
       return res.status(401).json({ message: "Invalid Google token" });
     }
 
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    console.log("🔍 Audience check");
+    console.log("   aud:", payload.aud);
+    console.log("   azp:", payload.azp);
+    console.log("   expected:", clientId);
+
+    // ✅ FIX: accept aud OR azp
+    if (payload.aud !== clientId && payload.azp !== clientId) {
+      console.log("❌ Audience mismatch");
+      return res.status(401).json({ message: "Invalid Google audience" });
+    }
+
     const email = normalizeEmail(payload.email);
+    console.log("📧 Google email:", email);
 
     let user = await User.findOne({ email });
 
     if (!user) {
+      console.log("🆕 Creating Google user");
       user = await User.create({
         email,
         googleId: payload.sub,
         name: payload.name,
         avatar: payload.picture,
-        authProvider: "google", // ✅ FIX ADDED
+        authProvider: "google",
         isRegistered: false,
       });
+    } else {
+      console.log("👤 Existing user:", user._id);
     }
 
     const session = await createSession(user._id, deviceId);
@@ -90,6 +125,9 @@ export const googleLogin = async (req, res) => {
 
     session.refreshToken = refreshToken;
     await session.save();
+
+    console.log("✅ GOOGLE LOGIN SUCCESS:", email);
+    console.log("=================================");
 
     res.json({
       token,
@@ -130,6 +168,7 @@ export const sendEmailOtp = async (req, res) => {
       { upsert: true, new: true }
     );
 
+    console.log("📩 OTP SENT:", email);
     res.json({ message: "OTP sent (valid for 1 minute)" });
   } catch (err) {
     console.error("❌ SEND OTP ERROR:", err);
@@ -145,24 +184,29 @@ export const verifyEmailOtp = async (req, res) => {
     let { email, otp, deviceId } = req.body;
 
     if (!email || !otp || !deviceId) {
-      return res.status(400).json({ message: "Email, OTP & deviceId required" });
+      return res.status(400).json({
+        message: "Email, OTP & deviceId required",
+      });
     }
 
     email = normalizeEmail(email);
 
     const record = await Otp.findOne({ email });
     if (!record || record.otp !== otp) {
-      return res.status(401).json({ message: "Invalid or expired OTP" });
+      console.log("❌ Invalid OTP:", email);
+      return res.status(401).json({
+        message: "Invalid or expired OTP",
+      });
     }
 
     await Otp.deleteOne({ email });
 
     let user = await User.findOne({ email });
-
     if (!user) {
+      console.log("🆕 Creating email user");
       user = await User.create({
         email,
-        authProvider: "email", // ✅ FIX ADDED
+        authProvider: "email",
         isRegistered: false,
       });
     }
@@ -174,6 +218,8 @@ export const verifyEmailOtp = async (req, res) => {
 
     session.refreshToken = refreshToken;
     await session.save();
+
+    console.log("✅ OTP LOGIN SUCCESS:", email);
 
     res.json({
       token,
@@ -198,19 +244,26 @@ export const refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
+    console.log("🔁 Refresh token request");
+
     const decoded = jwt.verify(
       refreshToken,
       process.env.JWT_REFRESH_SECRET
     );
 
     const session = await Session.findById(decoded.sessionId);
-    if (!session || session.refreshToken !== refreshToken) {
+
+    if (!session || session.revoked || session.refreshToken !== refreshToken) {
+      console.log("❌ Refresh token invalid");
       return res.status(401).json({ message: "Session expired" });
     }
 
     const token = signToken(decoded.userId, session._id);
+    console.log("✅ Token refreshed");
+
     res.json({ token });
-  } catch {
+  } catch (err) {
+    console.error("❌ REFRESH TOKEN ERROR:", err.message);
     res.status(401).json({ message: "Invalid refresh token" });
   }
 };
@@ -219,6 +272,8 @@ export const refreshToken = async (req, res) => {
    LOGOUT (CURRENT DEVICE)
 ====================================================== */
 export const logout = async (req, res) => {
+  console.log("👋 Logout current device");
+
   req.session.revoked = true;
   await req.session.save();
 
@@ -229,6 +284,8 @@ export const logout = async (req, res) => {
    LOGOUT ALL DEVICES
 ====================================================== */
 export const logoutAll = async (req, res) => {
+  console.log("👋 Logout all devices for:", req.user._id);
+
   await Session.updateMany(
     { user: req.user._id },
     { revoked: true }
@@ -258,6 +315,7 @@ export const resendEmailOtp = async (req, res) => {
       { upsert: true, new: true }
     );
 
+    console.log("🔁 OTP RESENT:", email);
     res.json({ message: "OTP resent (valid for 1 minute)" });
   } catch (err) {
     console.error("❌ RESEND OTP ERROR:", err);
