@@ -15,6 +15,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET?.trim(),
 });
 
-console.log("🔥 FINAL CLOUDINARY CONFIG:", cloudinary.config());
+// console.log("🔥 FINAL CLOUDINARY CONFIG:", cloudinary.config());
 
 export default cloudinary;
