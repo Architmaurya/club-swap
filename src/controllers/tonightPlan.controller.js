@@ -1,4 +1,6 @@
 import TonightPlan from "../models/TonightPlan.js";
+import { log } from "../utils/logger.js";
+
 
 /* ======================================================
    CREATE / UPDATE TONIGHT PLAN
@@ -41,7 +43,7 @@ export const upsertTonightPlan = async (req, res, next) => {
       plan,
     });
   } catch (err) {
-    console.error("❌ TONIGHT PLAN UPSERT ERROR:", err);
+    log("❌ TONIGHT PLAN UPSERT ERROR:", err);
 
     // Handle unique constraint edge case
     if (err.code === 11000) {
@@ -69,7 +71,7 @@ export const getTonightPlan = async (req, res, next) => {
       plan: plan || null,
     });
   } catch (err) {
-    console.error("❌ GET TONIGHT PLAN ERROR:", err);
+    log("❌ GET TONIGHT PLAN ERROR:", err);
     next(err);
   }
 };
@@ -89,7 +91,7 @@ export const cancelTonightPlan = async (req, res, next) => {
       message: "Tonight plan cancelled successfully",
     });
   } catch (err) {
-    console.error("❌ CANCEL TONIGHT PLAN ERROR:", err);
+    log("❌ CANCEL TONIGHT PLAN ERROR:", err);
     next(err);
   }
 };

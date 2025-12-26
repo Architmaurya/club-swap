@@ -1,5 +1,7 @@
 import { z } from "zod";
 import Club from "../models/Club.js";
+import { log } from "../utils/logger.js";
+
 
 // ------------------------
 // Validation Schema
@@ -19,12 +21,12 @@ export const createClubSchema = z.object({
 // ------------------------
 export const createClub = async (req, res, next) => {
   try {
-    console.log("➡️ Create Club Request by Admin:", req.user._id);
-    console.log("➡️ Request Body:", req.body);
+    log("➡️ Create Club Request by Admin:", req.user._id);
+    log("➡️ Request Body:", req.body);
 
     const { name, description, category, latitude, longitude } = req.body;
 
-    console.log("📌 Creating club in database...");
+    log("📌 Creating club in database...");
 
     const club = await Club.create({
       name,
@@ -37,11 +39,11 @@ export const createClub = async (req, res, next) => {
       createdBy: req.user._id
     });
 
-    console.log("✔ Club Created:", club._id);
+    log("✔ Club Created:", club._id);
 
     res.status(201).json({ club });
   } catch (err) {
-    console.log("❌ Error Creating Club:", err);
+    log("❌ Error Creating Club:", err);
     next(err);
   }
 };
@@ -51,15 +53,15 @@ export const createClub = async (req, res, next) => {
 // ------------------------
 export const listClubs = async (req, res, next) => {
   try {
-    console.log("➡️ Fetching all active clubs...");
+    log("➡️ Fetching all active clubs...");
 
     const clubs = await Club.find({ isActive: true }).lean();
 
-    console.log(`✔ ${clubs.length} clubs found`);
+    log(`✔ ${clubs.length} clubs found`);
 
     res.json(clubs);
   } catch (err) {
-    console.log("❌ Error Fetching Clubs:", err);
+    log("❌ Error Fetching Clubs:", err);
     next(err);
   }
 };

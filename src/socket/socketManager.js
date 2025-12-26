@@ -2,6 +2,8 @@ import Match from "../models/Match.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import PrivacySettings from "../models/PrivacySettings.js";
+import { log } from "../utils/logger.js";
+
 
 const onlineUsers = new Map();
 const offlineTimers = new Map();
@@ -11,18 +13,18 @@ export const socketManager = (io) => {
   if (!io) throw new Error("❌ socketManager called without io");
 
   io.on("connection", (socket) => {
-    console.log(`🔌 New Socket Connection: ${socket.id}`);
+    log(`🔌 New Socket Connection: ${socket.id}`);
 
     // --- USER ONLINE ---
     socket.on("online", async (userId) => {
-      console.log(`📡 Received 'online' event for User: ${userId}`);
+      log(`📡 Received 'online' event for User: ${userId}`);
       if (!userId) return;
       
       socket.userId = userId;
       onlineUsers.set(userId, socket.id);
       
       if (offlineTimers.has(userId)) {
-        console.log(`⏳ Clearing offline timer for User: ${userId}`);
+        log(`⏳ Clearing offline timer for User: ${userId}`);
         clearTimeout(offlineTimers.get(userId));
         offlineTimers.delete(userId);
       }
@@ -32,13 +34,13 @@ export const socketManager = (io) => {
       
       if (privacy?.showOnlineStatus !== false) {
         io.emit("userOnline", userId);
-        console.log(`🟢 Broadcasted 'userOnline' for: ${userId}`);
+        log(`🟢 Broadcasted 'userOnline' for: ${userId}`);
       }
     });
 
     // --- USER OFFLINE ---
     socket.on("offline", async (userId) => {
-      console.log(`🚪 Received 'offline' (manual) for User: ${userId}`);
+      log(`🚪 Received 'offline' (manual) for User: ${userId}`);
       if (!userId) return;
       
       onlineUsers.delete(userId);
@@ -46,19 +48,19 @@ export const socketManager = (io) => {
       
       await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen });
       io.emit("userOffline", { userId, lastSeen });
-      console.log(`🔴 Broadcasted 'userOffline' for: ${userId}`);
+      log(`🔴 Broadcasted 'userOffline' for: ${userId}`);
     });
 
     // --- JOIN ROOM ---
     socket.on("joinRoom", async ({ matchId, userId }) => {
-      console.log(`🏠 User ${userId} joining Room: ${matchId}`);
+      log(`🏠 User ${userId} joining Room: ${matchId}`);
       if (!matchId || !userId) return;
       socket.join(matchId);
     });
 
     // --- STAGE 3: DELIVERED ---
     socket.on("sendMessage", async ({ matchId, messageId }) => {
-      console.log(`✉️ 'sendMessage' triggered. Message: ${messageId} in Match: ${matchId}`);
+      log(`✉️ 'sendMessage' triggered. Message: ${messageId} in Match: ${matchId}`);
       if (!matchId || !messageId) return;
       
       const msg = await Message.findByIdAndUpdate(
@@ -69,15 +71,15 @@ export const socketManager = (io) => {
 
       if (msg) {
         io.to(matchId).emit("newMessage", msg);
-        console.log(`✅ Message ${messageId} status updated to: DELIVERED`);
+        log(`✅ Message ${messageId} status updated to: DELIVERED`);
       } else {
-        console.log(`❌ Message ${messageId} not found for delivery update`);
+        log(`❌ Message ${messageId} not found for delivery update`);
       }
     });
 
     // --- STAGE 4: READ ---
     socket.on("markAsRead", async ({ matchId, userId }) => {
-      console.log(`📖 'markAsRead' triggered by User: ${userId} for Match: ${matchId}`);
+      log(`📖 'markAsRead' triggered by User: ${userId} for Match: ${matchId}`);
       if (!matchId || !userId) return;
       
       const result = await Message.updateMany(
@@ -85,10 +87,10 @@ export const socketManager = (io) => {
         { $set: { status: "read" } }
       );
 
-      console.log(`🔵 DB Updated: ${result.modifiedCount} messages set to READ`);
+      log(`🔵 DB Updated: ${result.modifiedCount} messages set to READ`);
 
       io.to(matchId).emit("messagesRead", { matchId, readerId: userId });
-      console.log(`🔵 Broadcasted 'messagesRead' to room: ${matchId}`);
+      log(`🔵 Broadcasted 'messagesRead' to room: ${matchId}`);
     });
 
     // --- TYPING ---
@@ -103,7 +105,7 @@ export const socketManager = (io) => {
     // --- DISCONNECT ---
     socket.on("disconnect", () => {
       const userId = socket.userId;
-      console.log(`🔌 Socket disconnected: ${socket.id} (User: ${userId || 'Unknown'})`);
+      log(`🔌 Socket disconnected: ${socket.id} (User: ${userId || 'Unknown'})`);
 
       if (!userId) return;
 
@@ -115,7 +117,7 @@ export const socketManager = (io) => {
         io.emit("userOffline", { userId, lastSeen });
         
         offlineTimers.delete(userId);
-        console.log(`⏰ Timer expired: User ${userId} is now marked OFFLINE`);
+        log(`⏰ Timer expired: User ${userId} is now marked OFFLINE`);
       }, OFFLINE_DELAY);
 
       offlineTimers.set(userId, timer);

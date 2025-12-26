@@ -3,7 +3,7 @@ import razorpay from "../config/razorpay.js";
 
 export const createVipOrder = async (req, res) => {
   try {
-    console.log("🔥 Creating VIP order");
+    log("🔥 Creating VIP order");
 
     const { plan } = req.body;
 
@@ -36,7 +36,7 @@ export const createVipOrder = async (req, res) => {
       razorpayKeyId: process.env.RAZORPAY_KEY_ID,
     });
   } catch (err) {
-    console.error("❌ RAZORPAY ERROR FULL:", err);
+    log("❌ RAZORPAY ERROR FULL:", err);
     return res.status(500).json({
       message: err?.error?.description || "Failed to create order",
     });
@@ -79,7 +79,7 @@ export const verifyVipPayment = async (req, res) => {
       message: "Payment verified. Waiting for webhook.",
     });
   } catch (err) {
-    console.error("❌ VERIFY ERROR:", err);
+    log("❌ VERIFY ERROR:", err);
     return res.status(500).json({ message: "Verification failed" });
   }
 };

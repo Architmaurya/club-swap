@@ -18,12 +18,14 @@ import tonightPlanRoutes from "./routes/tonightPlan.routes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import { log } from "./utils/logger.js";
+
 
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 
-console.log("⚙️ Initializing Express App...");
+log("⚙️ Initializing Express App...");
 app.set("trust proxy", 1);
 
 /* =====================================================
@@ -75,7 +77,7 @@ app.use(xss());
 app.use(compression());
 app.use(morgan("dev"));
 
-console.log("🔒 Security & parser middlewares loaded");
+log("🔒 Security & parser middlewares loaded");
 
 /* =====================================================
    ROOT
@@ -87,7 +89,7 @@ app.get("/", (req, res) => {
 /* =====================================================
    API ROUTES
 ===================================================== */
-console.log("📌 Loading API routes...");
+log("📌 Loading API routes...");
 
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
@@ -100,7 +102,7 @@ app.use("/api/feed", feedRoutes);
 app.use("/api/plan", tonightPlanRoutes);
 app.use("/api/payment", paymentRoutes);
 
-console.log("✔ All API routes loaded");
+log("✔ All API routes loaded");
 
 /* =====================================================
    ERROR HANDLERS
@@ -108,6 +110,6 @@ console.log("✔ All API routes loaded");
 app.use(notFound);
 app.use(errorHandler);
 
-console.log("🛑 Error handling middlewares active");
+log("🛑 Error handling middlewares active");
 
 export default app;

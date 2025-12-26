@@ -3,6 +3,8 @@ import Match from "../models/Match.js";
 import UserProfile from "../models/UserProfile.js";
 import PrivacySettings from "../models/PrivacySettings.js";
 import Photo from "../models/Photo.js";
+import { log } from "../utils/logger.js";
+
 
 /* ================= LIKE / ACCEPT ================= */
 export const likeUser = async (req, res, next) => {
@@ -127,7 +129,7 @@ export const unlikeUser = async (req, res, next) => {
 
 //     res.json({ matches: result.filter(Boolean) });
 //   } catch (err) {
-//     console.error("❌ LIST MATCHES ERROR:", err);
+//     log("❌ LIST MATCHES ERROR:", err);
 //     next(err);
 //   }
 // };

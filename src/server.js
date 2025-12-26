@@ -7,12 +7,13 @@ import http from "http";
 import { Server } from "socket.io";
 import { socketManager } from "./socket/socketManager.js";
 import { createInitialAdmin } from "./utils/createAdmin.js";
+import { log } from "./utils/logger.js";
 
 const PORT = process.env.PORT;
 
 // 🔥 FAIL FAST
 if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
-  console.error("❌ JWT secrets missing");
+  log("❌ JWT secrets missing");
   process.exit(1);
 }
 
@@ -31,17 +32,17 @@ const start = async () => {
       },
     });
 
-    console.log("⚡ Socket.IO initialized");
+    log("⚡ Socket.IO initialized");
 
     // ✅ PASS io HERE (THIS WAS MISSING)
     socketManager(io);
 
     server.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      log(`🚀 Server running on port ${PORT}`);
     });
 
   } catch (err) {
-    console.error("❌ Server startup failed:", err);
+    log("❌ Server startup failed:", err);
     process.exit(1);
   }
 };

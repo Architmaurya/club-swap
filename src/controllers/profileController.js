@@ -9,6 +9,8 @@ import Club from "../models/Club.js";
 
 import cloudinary from "../config/cloudinary.js";
 import multer from "multer";
+import { log } from "../utils/logger.js";
+
 
 /* ===============================
    ZOD SCHEMA (SAFE + FLEXIBLE)
@@ -43,9 +45,9 @@ export const createProfileSchema = z.object({
 ================================ */
 export const createOrUpdateProfile = async (req, res, next) => {
   try {
-    console.log("======================================");
-    console.log("👤 PROFILE USER:", req.user._id.toString());
-    console.log("📥 RAW PROFILE BODY:", req.body);
+    log("======================================");
+    log("👤 PROFILE USER:", req.user._id.toString());
+    log("📥 RAW PROFILE BODY:", req.body);
 
     const {
       name,
@@ -70,13 +72,13 @@ export const createOrUpdateProfile = async (req, res, next) => {
     let favoriteClubIds = [];
 
     if (Array.isArray(favoriteClubs) && favoriteClubs.length > 0) {
-      console.log("🎯 favoriteClubs input:", favoriteClubs);
+      log("🎯 favoriteClubs input:", favoriteClubs);
 
       if (mongoose.isValidObjectId(favoriteClubs[0])) {
-        console.log("🆔 favoriteClubs detected as IDs");
+        log("🆔 favoriteClubs detected as IDs");
         favoriteClubIds = favoriteClubs;
       } else {
-        console.log("🏷️ favoriteClubs detected as names");
+        log("🏷️ favoriteClubs detected as names");
 
         const clubs = await Club.find({
           name: { $in: favoriteClubs },
@@ -86,7 +88,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
       }
     }
 
-    console.log("✅ favoriteClubIds resolved:", favoriteClubIds);
+    log("✅ favoriteClubIds resolved:", favoriteClubIds);
 
     /* --------------------------------
        PROFILE PAYLOAD
@@ -109,7 +111,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
       openForAfterparty: openForAfterparty ?? false,
     };
 
-    console.log("🧾 FINAL PROFILE PAYLOAD:", profilePayload);
+    log("🧾 FINAL PROFILE PAYLOAD:", profilePayload);
 
     const profile = await UserProfile.findOneAndUpdate(
       { user: req.user._id },
@@ -117,7 +119,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
       { upsert: true, new: true }
     );
 
-    console.log("💾 PROFILE SAVED:", profile._id);
+    log("💾 PROFILE SAVED:", profile._id);
 
     /* --------------------------------
        MARK USER REGISTERED
@@ -126,7 +128,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
       isRegistered: true,
     });
 
-    console.log("✅ User marked as registered");
+    log("✅ User marked as registered");
 
     /* --------------------------------
        TONIGHT PLAN (OPTIONAL)
@@ -135,7 +137,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      console.log("🌙 Saving TonightPlan");
+      log("🌙 Saving TonightPlan");
 
       await TonightPlan.findOneAndUpdate(
         { user: req.user._id, date: today },
@@ -149,7 +151,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
       );
     }
 
-    console.log("======================================");
+    log("======================================");
 
     res.status(201).json({
       message: "Profile completed successfully",
@@ -157,7 +159,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
       profile,
     });
   } catch (err) {
-    console.error("❌ PROFILE ERROR:", err);
+    log("❌ PROFILE ERROR:", err);
     next(err);
   }
 };
@@ -167,7 +169,7 @@ export const createOrUpdateProfile = async (req, res, next) => {
 ================================ */
 export const getMyProfile = async (req, res) => {
   try {
-    console.log("📤 Fetching profile for:", req.user._id);
+    log("📤 Fetching profile for:", req.user._id);
 
     const profile = await UserProfile.findOne({ user: req.user._id })
       .populate({
@@ -194,7 +196,7 @@ export const getMyProfile = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ GET PROFILE ERROR:", err);
+    log("❌ GET PROFILE ERROR:", err);
     res.status(500).json({ message: "Failed to fetch profile" });
   }
 };
@@ -260,7 +262,7 @@ export const uploadPhotos = async (req, res, next) => {
       photos: uploads,
     });
   } catch (err) {
-    console.error("❌ PHOTO UPLOAD ERROR:", err);
+    log("❌ PHOTO UPLOAD ERROR:", err);
     next(err);
   }
 };
@@ -287,7 +289,7 @@ export const reorderPhotos = async (req, res) => {
 
     res.json({ message: "Photo order updated successfully" });
   } catch (err) {
-    console.error("❌ REORDER PHOTOS ERROR:", err);
+    log("❌ REORDER PHOTOS ERROR:", err);
     res.status(500).json({ message: "Failed to reorder photos" });
   }
 };
@@ -322,7 +324,7 @@ export const deletePhoto = async (req, res) => {
 
     res.json({ message: "Photo deleted successfully" });
   } catch (err) {
-    console.error("❌ DELETE PHOTO ERROR:", err);
+    log("❌ DELETE PHOTO ERROR:", err);
     res.status(500).json({ message: "Failed to delete photo" });
   }
 };

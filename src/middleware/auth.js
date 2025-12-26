@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Session from "../models/Session.js";
+import { log } from "../utils/logger.js";
+ 
 
 const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutes
 
@@ -88,7 +90,7 @@ export const authRequired = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.error("❌ AUTH ERROR:", err);
+    log("❌ AUTH ERROR:", err);
     res.status(401).json({ message: "Unauthorized" });
   }
 };

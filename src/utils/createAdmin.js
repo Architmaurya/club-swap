@@ -1,9 +1,11 @@
 import User from "../models/User.js";
+import { log } from "./logger.js";
+
 
 export const createInitialAdmin = async () => {
   const adminExists = await User.findOne({ role: "admin" });
   if (adminExists) {
-    console.log("🔒 Admin already exists.");
+    log("🔒 Admin already exists.");
     return;
   }
 
@@ -11,7 +13,7 @@ export const createInitialAdmin = async () => {
   const adminGoogleId = process.env.ADMIN_GOOGLE_ID;
 
   if (!adminEmail || !adminGoogleId) {
-    console.log("❌ Missing admin credentials in .env");
+    log("❌ Missing admin credentials in .env");
     return;
   }
 
@@ -21,5 +23,5 @@ export const createInitialAdmin = async () => {
     role: "admin"
   });
 
-  console.log(`👑 Admin created: ${adminEmail}`);
+  log(`👑 Admin created: ${adminEmail}`);
 };

@@ -15,13 +15,13 @@ const istToUTC = (istDate) =>
 ================================ */
 export const razorpayWebhook = async (req, res) => {
   try {
-    console.log("🔥 RAZORPAY WEBHOOK HIT");
+    log("🔥 RAZORPAY WEBHOOK HIT");
 
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers["x-razorpay-signature"];
 
     if (!signature) {
-      console.error("❌ Missing signature");
+     log("❌ Missing signature");
       return res.status(400).json({ message: "Missing signature" });
     }
 
@@ -33,31 +33,31 @@ export const razorpayWebhook = async (req, res) => {
       .digest("hex");
 
     if (expectedSignature !== signature) {
-      console.error("❌ Invalid webhook signature");
+     log("❌ Invalid webhook signature");
       return res.status(400).json({ message: "Invalid signature" });
     }
 
     const event = JSON.parse(rawBody.toString());
-    console.log("📩 EVENT:", event.event);
+    log("📩 EVENT:", event.event);
 
     if (event.event !== "payment.captured") {
       return res.status(200).json({ status: "ignored" });
     }
 
     const payment = event.payload.payment.entity;
-    console.log("📩 NOTES:", payment.notes);
+    log("📩 NOTES:", payment.notes);
 
     const userId = payment.notes?.userId;
     const plan = payment.notes?.plan;
 
     if (!userId || !plan) {
-      console.warn("⚠️ Missing userId / plan in notes");
+      log("⚠️ Missing userId / plan in notes");
       return res.status(200).json({ status: "no-vip-metadata" });
     }
 
     const user = await User.findById(userId).select("vipExpiresAt");
     if (!user) {
-      console.error("❌ User not found:", userId);
+     log("❌ User not found:", userId);
       return res.status(200).json({ status: "user-not-found" });
     }
 
@@ -97,7 +97,7 @@ export const razorpayWebhook = async (req, res) => {
       { runValidators: false }
     );
 
-    console.log("✅ VIP UPDATED", {
+    log("✅ VIP UPDATED", {
       userId,
       plan,
       expiresAtIST: newExpiryIST.toLocaleString("en-IN", {
@@ -108,7 +108,7 @@ export const razorpayWebhook = async (req, res) => {
 
     return res.status(200).json({ status: "vip-updated" });
   } catch (err) {
-    console.error("❌ WEBHOOK ERROR:", err);
+   log("❌ WEBHOOK ERROR:", err);
     return res.status(500).json({ message: "Webhook error" });
   }
 };

@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
+import { log } from "../utils/logger.js";
 
 // Load .env before Cloudinary config
 dotenv.config();
@@ -14,7 +15,6 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY?.trim(),
   api_secret: process.env.CLOUDINARY_API_SECRET?.trim(),
 });
-
-// console.log("🔥 FINAL CLOUDINARY CONFIG:", cloudinary.config());
+log("🔥 FINAL CLOUDINARY CONFIG:", cloudinary.config());
 
 export default cloudinary;

@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import UserProfile from "../models/UserProfile.js";
 import Like from "../models/Like.js";
 import Match from "../models/Match.js";
+import { log } from "../utils/logger.js";
+
 
 /**
  * GET /api/feed
@@ -11,7 +13,7 @@ import Match from "../models/Match.js";
  */
 export const getFeed = async (req, res, next) => {
   try {
-    console.log("➡️ Feed Request by user:", req.user._id);
+    log("➡️ Feed Request by user:", req.user._id);
 
     const userId = req.user._id;
 
@@ -134,12 +136,12 @@ export const getFeed = async (req, res, next) => {
       },
     ]);
 
-    console.log(`✔ Feed generated: ${feedProfiles.length} profiles`);
+    log(`✔ Feed generated: ${feedProfiles.length} profiles`);
 
     return res.status(200).json({ feed: feedProfiles });
 
   } catch (err) {
-    console.error("❌ Feed Error:", err);
+    log("❌ Feed Error:", err);
     next(err);
   }
 };

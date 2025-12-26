@@ -1,4 +1,6 @@
 import Razorpay from "razorpay";
+import { log } from "../utils/logger.js";
+
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -6,9 +8,9 @@ const razorpay = new Razorpay({
 });
 
 // ✅ Safe debug (PUBLIC KEY ONLY)
-// console.log(
-//   "✅ Razorpay initialized with key:",
-//   process.env.RAZORPAY_KEY_ID
-// );
+log(
+  "✅ Razorpay initialized with key:",
+  process.env.RAZORPAY_KEY_ID
+);
 
 export default razorpay;
