@@ -2,13 +2,12 @@ import mongoose from "mongoose";
 
 const tonightPlanSchema = new mongoose.Schema(
   {
-    // 🔒 One plan per user (ENFORCED at DB level)
+    // 🔒 One plan per user (DB enforced)
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,     // ❗ prevents duplicates
-      index: true,
+      unique: true,   // ✅ enough
     },
 
     club: {
@@ -23,7 +22,6 @@ const tonightPlanSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // For display / reference only (today or selected day)
     date: {
       type: Date,
       required: true,
@@ -33,8 +31,5 @@ const tonightPlanSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
-// ✅ Safety index (extra guarantee)
-tonightPlanSchema.index({ user: 1 }, { unique: true });
 
 export default mongoose.model("TonightPlan", tonightPlanSchema);
