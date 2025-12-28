@@ -26,6 +26,18 @@ const messageSchema = new mongoose.Schema(
       of: Number, // emoji -> count
       default: {},
     },
+    // Users for whom this message is hidden ("Delete for Me")
+    deletedFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    // If true the message has been deleted for everyone
+    deletedForEveryone: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

@@ -7,11 +7,13 @@ import {
   getMessages,
   markRead,
 } from "../controllers/messageController.js";
+import { deleteMessage } from "../controllers/messageController.js";
 
 const router = express.Router();
 
 router.post("/", authRequired, validate(sendMessageSchema), sendMessage);
 router.get("/:matchId", authRequired, getMessages);
 router.post("/read/:matchId", authRequired, markRead); // ✅ FIX
+router.delete('/:id', authRequired, deleteMessage);
 
 export default router;

@@ -3,6 +3,7 @@ import Message from "../models/Message.js";
 import User from "../models/User.js";
 import PrivacySettings from "../models/PrivacySettings.js";
 import { log } from "../utils/logger.js";
+import { setIo } from "./io.js";
 
 
 const onlineUsers = new Map();
@@ -11,6 +12,13 @@ const OFFLINE_DELAY = 1000;
 
 export const socketManager = (io) => {
   if (!io) throw new Error("❌ socketManager called without io");
+
+  // Make io available to controllers that need to emit events
+  try {
+    setIo(io);
+  } catch (err) {
+    log("⚠️ Failed to set io instance:", err.message || err);
+  }
 
   io.on("connection", (socket) => {
     log(`🔌 New Socket Connection: ${socket.id}`);

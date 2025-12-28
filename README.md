@@ -305,6 +305,76 @@ Send a message in a match.
 
 Get all chat messages for a match (oldest → newest).
 
+### Message Deletion & Real-time
+
+This app supports two deletion modes similar to WhatsApp:
+
+- **Delete for Me**: message is removed only from the requester's chat.
+- **Delete for Everyone**: message is removed for both participants (only allowed by the sender within 1 hour).
+
+#### `DELETE /api/messages/:id?scope=me|everyone` (protected)
+
+- `scope=me` (default): hides the message for the authenticated user by adding them to `deletedFor`. No socket event is emitted — client should remove it locally.
+- `scope=everyone`: only the message `sender` can call this and only within 1 hour of creation. The server sets `deletedForEveryone=true`, clears `text`/`reactions`, and emits a `messageDeleted` socket event to the match room.
+
+**Request example (Delete for me)**
+
+```bash
+curl -X DELETE "http://localhost:5000/api/messages/MSG_ID" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Request example (Delete for everyone — sender, <1h)**
+
+```bash
+curl -X DELETE "http://localhost:5000/api/messages/MSG_ID?scope=everyone" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response**
+
+```json
+{ "success": true }
+```
+
+#### Socket events (client)
+
+- Identify & join room:
+
+```js
+socket.emit('online', userId);
+socket.emit('joinRoom', { matchId, userId });
+```
+
+- Sending flow (recommended):
+  1. POST `/api/messages` → get saved message with `_id`.
+  2. Emit `sendMessage` to let server mark delivered and broadcast:
+
+```js
+socket.emit('sendMessage', { matchId, messageId: savedMsg._id });
+socket.on('newMessage', (msg) => { /* add to UI */ });
+```
+
+- Mark read:
+
+```js
+socket.emit('markAsRead', { matchId, userId });
+socket.on('messagesRead', ({ matchId, readerId }) => { /* update UI */ });
+```
+
+- Real-time deletion (server emits when `scope=everyone`):
+
+```js
+socket.on('messageDeleted', ({ messageId, matchId, deletedForEveryone, message }) => {
+  // remove or replace message in UI (message.text will be null)
+});
+```
+
+Notes:
+- The server already filters out messages that are deleted for the requesting user when you call `GET /api/messages/:matchId`.
+- `deletedFor` is an array of user IDs — if current user is present, hide the message. `deletedForEveryone: true` indicates the message was removed for all.
+
+
 ---
 
 ## Privacy
