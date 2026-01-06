@@ -2,10 +2,9 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Session from "../models/Session.js";
 import { log } from "../utils/logger.js";
+ 
 
-/* ======================================================
-   AUTH MIDDLEWARE
-====================================================== */
+const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutes
 
 export const authRequired = async (req, res, next) => {
   try {
@@ -31,9 +30,16 @@ export const authRequired = async (req, res, next) => {
        SESSION CHECK
     ================================ */
     const session = await Session.findById(decoded.sessionId);
-
     if (!session || session.revoked) {
       return res.status(401).json({ message: "Session expired" });
+    }
+
+    if (Date.now() - session.lastActive.getTime() > INACTIVITY_LIMIT) {
+      session.revoked = true;
+      await session.save();
+      return res.status(401).json({
+        message: "Logged out due to inactivity",
+      });
     }
 
     /* ===============================
@@ -48,19 +54,20 @@ export const authRequired = async (req, res, next) => {
     }
 
     /* ===============================
-       VIP ACTIVE (RACE SAFE)
+       VIP ACTIVE (FIXED – RACE SAFE)
     ================================ */
     const NOW = Date.now();
     const EXPIRY = user.vipExpiresAt
       ? new Date(user.vipExpiresAt).getTime()
       : 0;
 
+    // ⏱️ 2-second safety buffer to avoid millisecond boundary race
     const isVipActive =
       user.isVip &&
       EXPIRY - NOW > 2000;
 
     /* ===============================
-       UPDATE SESSION ACTIVITY
+       UPDATE SESSION
     ================================ */
     session.lastActive = new Date();
     await session.save();
@@ -69,15 +76,14 @@ export const authRequired = async (req, res, next) => {
        ATTACH SAFE USER OBJECT
     ================================ */
     req.user = {
-      userId: user._id,
+      _id: user._id,
       email: user.email,
       role: user.role,
       isRegistered: user.isRegistered,
       isVip: user.isVip,
       vipPlan: user.vipPlan,
       vipExpiresAt: user.vipExpiresAt,
-      isVipActive,
-      sessionId: session._id,
+      isVipActive, // ✅ STABLE & CORRECT
     };
 
     req.session = session;

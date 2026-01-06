@@ -15,7 +15,7 @@ const signToken = (userId, sessionId) => {
   return jwt.sign(
     { userId, sessionId },
     process.env.JWT_SECRET,
-    { expiresIn: "1h" }
+    { expiresIn: "15m" }
   );
 };
 
@@ -25,7 +25,7 @@ const signRefreshToken = (userId, sessionId) => {
   return jwt.sign(
     { userId, sessionId },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: "30d" }
+    { expiresIn: "7d" }
   );
 };
 
@@ -37,7 +37,6 @@ const createSession = async (userId, deviceId) => {
   log("   userId:", userId);
   log("   deviceId:", deviceId);
 
-  // remove old session for same device
   await Session.deleteMany({ user: userId, deviceId });
 
   return Session.create({
@@ -50,7 +49,7 @@ const createSession = async (userId, deviceId) => {
 };
 
 /* ======================================================
-   GOOGLE LOGIN
+   GOOGLE LOGIN (ONLY AUTH METHOD)
 ====================================================== */
 export const googleLogin = async (req, res) => {
   try {
@@ -69,6 +68,7 @@ export const googleLogin = async (req, res) => {
     log("🟡 Verifying Google token");
 
     const fetchFn = global.fetch || fetch;
+
     const googleRes = await fetchFn(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`
     );
@@ -83,6 +83,12 @@ export const googleLogin = async (req, res) => {
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
 
+    log("🔍 Audience check");
+    log("   aud:", payload.aud);
+    log("   azp:", payload.azp);
+    log("   expected:", clientId);
+
+    // ✅ Accept aud OR azp
     if (payload.aud !== clientId && payload.azp !== clientId) {
       log("❌ Audience mismatch");
       return res.status(401).json({ message: "Invalid Google audience" });
@@ -114,18 +120,17 @@ export const googleLogin = async (req, res) => {
 
     const session = await createSession(user._id, deviceId);
 
-    const accessToken = signToken(user._id, session._id);
+    const token = signToken(user._id, session._id);
     const refreshToken = signRefreshToken(user._id, session._id);
 
     session.refreshToken = refreshToken;
-    session.lastActive = new Date();
     await session.save();
 
     log("✅ GOOGLE LOGIN SUCCESS:", email);
     log("=================================");
 
     res.json({
-      token: accessToken,
+      token,
       refreshToken,
       isRegistered: user.isRegistered,
       user: {
@@ -147,45 +152,26 @@ export const googleLogin = async (req, res) => {
 ====================================================== */
 export const refreshToken = async (req, res) => {
   try {
+    const { refreshToken } = req.body;
+
     log("🔁 Refresh token request");
 
-    const { refreshToken: incomingRefreshToken } = req.body;
-
-    if (!incomingRefreshToken) {
-      log("❌ Refresh token missing");
-      return res.status(401).json({ message: "Refresh token required" });
-    }
-
     const decoded = jwt.verify(
-      incomingRefreshToken,
+      refreshToken,
       process.env.JWT_REFRESH_SECRET
     );
 
     const session = await Session.findById(decoded.sessionId);
 
-    if (
-      !session ||
-      session.revoked ||
-      session.refreshToken !== incomingRefreshToken
-    ) {
-      log("❌ Refresh token invalid or session revoked");
+    if (!session || session.revoked || session.refreshToken !== refreshToken) {
+      log("❌ Refresh token invalid");
       return res.status(401).json({ message: "Session expired" });
     }
 
-    // rotate refresh token (important)
-    const newAccessToken = signToken(decoded.userId, session._id);
-    const newRefreshToken = signRefreshToken(decoded.userId, session._id);
+    const token = signToken(decoded.userId, session._id);
+    log("✅ Token refreshed");
 
-    session.refreshToken = newRefreshToken;
-    session.lastActive = new Date();
-    await session.save();
-
-    log("✅ Token refreshed successfully");
-
-    res.json({
-      token: newAccessToken,
-      refreshToken: newRefreshToken,
-    });
+    res.json({ token });
   } catch (err) {
     log("❌ REFRESH TOKEN ERROR:", err.message);
     res.status(401).json({ message: "Invalid refresh token" });
@@ -196,35 +182,22 @@ export const refreshToken = async (req, res) => {
    LOGOUT (CURRENT DEVICE)
 ====================================================== */
 export const logout = async (req, res) => {
-  try {
-    log("👋 Logout current device");
+  log("👋 Logout current device");
 
-    const sessionId = req.user?.sessionId;
+  req.session.revoked = true;
+  await req.session.save();
 
-    if (!sessionId) {
-      log("⚠ No sessionId found in token");
-      return res.json({ message: "Already logged out" });
-    }
-
-    await Session.findByIdAndUpdate(sessionId, {
-      revoked: true,
-    });
-
-    res.json({ message: "Logged out successfully" });
-  } catch (err) {
-    log("❌ LOGOUT ERROR:", err);
-    res.status(500).json({ message: "Logout failed" });
-  }
+  res.json({ message: "Logged out successfully" });
 };
 
 /* ======================================================
    LOGOUT ALL DEVICES
 ====================================================== */
 export const logoutAll = async (req, res) => {
-  log("👋 Logout all devices for:", req.user.userId);
+  log("👋 Logout all devices for:", req.user._id);
 
   await Session.updateMany(
-    { user: req.user.userId },
+    { user: req.user._id },
     { revoked: true }
   );
 
