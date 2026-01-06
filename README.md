@@ -25,7 +25,53 @@ Server runs on `http://localhost:5000`.
 
 ---
 
+
 ## Auth
+
+### JWT Access & Refresh Token Flow
+
+- **Access Token**: Short-lived JWT, expires in **1 hour**. Used in `Authorization: Bearer <token>` for all protected APIs.
+- **Refresh Token**: Long-lived JWT, expires in **30 days**. Used to obtain new access tokens without forcing the user to log in again. Stored securely in the database and returned at login.
+
+#### Login Response Example
+
+```json
+{
+  "token": "<ACCESS_TOKEN>",
+  "refreshToken": "<REFRESH_TOKEN>",
+  "user": { ... }
+}
+```
+
+#### Refreshing Access Token
+
+To get a new access token when the old one expires, call:
+
+**POST `/api/auth/refresh`**
+
+Request:
+```json
+{
+  "refreshToken": "<REFRESH_TOKEN>"
+}
+```
+Response:
+```json
+{
+  "token": "<NEW_ACCESS_TOKEN>"
+}
+```
+
+If the refresh token is invalid or expired, you'll get a 401 error and must log in again.
+
+#### Example: Using the new access token
+
+```bash
+curl -X GET http://localhost:5000/api/profile/me \
+  -H "Authorization: Bearer <NEW_ACCESS_TOKEN>"
+```
+
+---
 
 ### `POST /api/auth/google`
 
@@ -46,6 +92,7 @@ Create or log in a user using Google account.
 ```json
 {
   "token": "JWT_TOKEN",
+  "refreshToken": "REFRESH_TOKEN",
   "user": {
     "id": "66af220f89d8c1a88e055f39",
     "email": "user@example.com",
